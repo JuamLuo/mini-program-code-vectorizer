@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小程序码矢量化工具</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 24px 16px 60px;
+      background: #f7f7f8;
+      color: #1a1a1a;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin: 0 0 6px;
+    }
+
+    .sub {
+      color: #666;
+      font-size: 13px;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    .panel {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 9px 20px;
+      border-radius: 8px;
+      border: none;
+      font-size: 14px;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+
+    button:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: #07c160;
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: #eee;
+      color: #333;
+    }
+
+    #fileInput {
+      display: none;
+    }
+
+    #log {
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-size: 12px;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: 8px;
+      padding: 12px;
+      max-height: 280px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      line-height: 1.7;
+      margin-top: 12px;
+    }
+
+    #log .ok {
+      color: #6ee7a8;
+    }
+
+    #log .warn {
+      color: #fbbf24;
+    }
+
+    #log .err {
+      color: #f87171;
+    }
+
+    #debugCanvas {
+      max-width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #fff;
+      margin-top: 12px;
+      cursor: crosshair;
+    }
+
+    .output-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 800px) {
+      .output-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card-title {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .svg-box {
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+      display: flex;
+      justify-content: center;
+      min-height: 120px;
+    }
+
+    .svg-box svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    .stat-line {
+      font-size: 12px;
+      color: #888;
+      margin-top: 6px;
+    }
+
+    .legend {
+      font-size: 12px;
+      color: #666;
+      margin-top: 8px;
+      line-height: 1.8;
+    }
+
+    .legend span {
+      display: inline-block;
+      margin-right: 14px;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+
+    .slider-panel {
+      margin-top: 12px;
+      padding: 12px;
+      background: #fffbe6;
+      border: 1px solid #f0e0a0;
+      border-radius: 8px;
+    }
+
+    .slider-panel+.slider-panel {
+      margin-top: 8px;
+    }
+
+    .slider-panel label {
+      font-size: 13px;
+      color: #555;
+    }
+
+    .slider-panel input[type=range] {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .slider-panel .val {
+      font-weight: 600;
+      color: #b8860b;
+      font-family: ui-monospace, monospace;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: #8a7a40;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>小程序码重绘</h1>
+  <p class="sub">
+    SVG 中 logo 圈与徽标圈为可见的灰色虚线 + 白色填充，导入 Illustrator 后可直接在圆圈内叠加 logo 图片。
+所有滑块默认 <b>1.00×</b>，即 logo = 0.380 × sideLen，定位点外径 = 0.079 × sideLen，
+徽标距圆心 = 0.726 × sideLen，徽标半径 = 0.156 × sideLen。sideLen 为两定位点直角边平均长度。
+  </p>
+
+  <div class="panel">
+    <div class="row">
+      <button class="btn-secondary" id="chooseBtn">选择图片</button>
+      <input type="file" id="fileInput" accept="image/*">
+      <button class="btn-primary" id="runBtn" disabled>开始测绘</button>
+      <button class="btn-secondary" id="downloadBtn" disabled>下载 SVG</button>
+      <span id="fileName" style="font-size:13px;color:#888;"></span>
+    </div>
+    <div id="log">等待选择图片…</div>
+  </div>
+
+  <div class="panel" id="resultPanel" style="display:none;">
+    <div class="output-grid">
+      <div>
+        <div class="card-title">① 调试叠加图</div>
+        <canvas id="debugCanvas"></canvas>
+        <div class="legend">
+          <span><i class="dot" style="background:#ff3b30"></i>定位点</span>
+          <span><i class="dot" style="background:#00c8ff"></i>定位点排除圈</span>
+          <span><i class="dot" style="background:#ff9600"></i>中央 logo 区</span>
+          <span><i class="dot" style="background:#a855f7"></i>右下徽标区</span>
+          <span><i class="dot" style="background:#34c759"></i>码点</span>
+        </div>
+        <div class="stat-line" id="debugStat"></div>
+      </div>
+      <div>
+        <div class="card-title">② 生成的矢量 SVG</div>
+        <div class="svg-box" id="svgBox"></div>
+        <div class="stat-line" id="svgStat"></div>
+      </div>
+    </div>
+
+    <div class="slider-panel">
+      <div class="row">
+        <label>中央 Logo 半径：<span class="val" id="logoRVal">1.00×</span></label>
+        <input type="range" id="logoSlider" min="50" max="150" value="100" disabled>
+        <button class="btn-secondary" id="resetLogoBtn" disabled>恢复默认值</button>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="btn-secondary" id="uploadLogoBtn">上传 Logo（PNG/JPG/SVG）</button>
+        <button class="btn-secondary" id="cropLogoBtn">从原图截取</button>
+        <button class="btn-secondary" id="clearLogoBtn">清除 Logo（占位圆）</button>
+        <input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
+          style="display:none;">
+      </div>
+      <div class="hint">💡 默认从原图 logo 区截取填充；上传 logo 会覆盖；点"清除 Logo"可恢复默认原图截取。</div>
+    </div>
+
+    <div class="slider-panel">
+      <div class="row">
+        <label>定位点缩放：<span class="val" id="locatorScaleVal">1.00×</span></label>
+        <input type="range" id="locatorScaleSlider" min="50" max="150" value="100" disabled>
+        <button class="btn-secondary" id="resetLocatorBtn" disabled>恢复 1.00×</button>
+      </div>
+      <div class="hint">💡 1.00× = 0.079 × sideLen（内:中:外 = 1 : 3.5 : 4.9）。红色实心圆应贴合内黑点，红色细线圆应贴合外黑环外径。</div>
+    </div>
+
+    <div class="slider-panel" style="background:#f3e8ff; border-color:#d8b4fe;">
+      <div class="row">
+        <label>徽标距圆心：<span class="val" id="badgeDistVal">1.00×</span></label>
+        <input type="range" id="badgeDistSlider" min="50" max="150" value="100" disabled>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <label>徽标半径：<span class="val" id="badgeSizeVal">1.00×</span></label>
+        <input type="range" id="badgeSizeSlider" min="50" max="150" value="100" disabled>
+        <button class="btn-secondary" id="resetBadgeBtn" disabled>恢复默认</button>
+      </div>
+      <div class="hint">💡 紫色虚线圆应贴合原图右下角徽标。测定好数值后换同尺寸码可直接复用。</div>
+    </div>
+  </div>
+
+  <script>
+    const chooseBtn = document.getElementById('chooseBtn');
+    const fileInput = document.getElementById('fileInput');
+    const runBtn = document.getElementById('runBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const fileName = document.getElementById('fileName');
+    const logEl = document.getElementById('log');
+    const resultPanel = document.getElementById('resultPanel');
+    const debugCanvas = document.getElementById('debugCanvas');
+    const svgBox = document.getElementById('svgBox');
+    const debugStat = document.getElementById('debugStat');
+    const svgStat = document.getElementById('svgStat');
+    const logoSlider = document.getElementById('logoSlider');
+    const logoRVal = document.getElementById('logoRVal');
+    const resetLogoBtn = document.getElementById('resetLogoBtn');
+    const locatorScaleSlider = document.getElementById('locatorScaleSlider');
+    const locatorScaleVal = document.getElementById('locatorScaleVal');
+    const resetLocatorBtn = document.getElementById('resetLocatorBtn');
+    const badgeDistSlider = document.getElementById('badgeDistSlider');
+    const badgeDistVal = document.getElementById('badgeDistVal');
+    const badgeSizeSlider = document.getElementById('badgeSizeSlider');
+    const badgeSizeVal = document.getElementById('badgeSizeVal');
+    const resetBadgeBtn = document.getElementById('resetBadgeBtn');
+
+    // ============ 标定基准值：滑块 1.00× 时对应的物理比例（基准量 = sideLen） ============
+    // sideLen = 三个定位点构成等腰直角三角形的两直角边平均长度，从图像直接测量，最稳定
+    const BASELINE_LOGO_RATIO = 0.380;       // logo 半径 = 0.380 × sideLen
+    const BASELINE_LOCATOR_OUTER = 0.079;    // 定位点外半径 = 0.079 × sideLen（内:中:外 = 1:3.5:4.9）
+    const BASELINE_BADGE_DIST = 0.726;       // 徽标距圆心 = 0.726 × sideLen
+    const BASELINE_BADGE_SIZE = 0.156;       // 徽标半径 = 0.156 × sideLen
+    const BASELINE_DOT_RATIO = 0.019;        // 码点半径 = 0.043 × sideLen
+    const LOCATOR_MID_RATIO = 3.5 / 4.9;     // 白环外径 / 外黑环外径
+const LOCATOR_INNER_RATIO = 1 / 4.9;     // 内黑点半径 / 外黑环外径
+
+    // ============ 徽标 SVG（在此粘贴你准备好的小程序徽标 SVG 源码） ============
+    const BADGE_SVG_RAW = `<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"><path d="M512 0a512 512 0 1 0 512 512A512 512 0 0 0 512 0z m256.717 460.186a151.962 151.962 0 0 1-87.347 65.74 83.251 83.251 0 0 1-24.474 4.096 29.082 29.082 0 0 1 0-58.163 15.667 15.667 0 0 0 6.451-1.229 91.443 91.443 0 0 0 55.91-40.96 75.264 75.264 0 0 0 11.06-39.628c0-45.978-42.496-83.866-94.31-83.866a105.267 105.267 0 0 0-51.2 13.414 81.92 81.92 0 0 0-43.725 70.452v244.224a138.445 138.445 0 0 1-72.704 120.422 159.642 159.642 0 0 1-79.77 20.48c-84.378 0-153.6-63.488-153.6-142.029a136.192 136.192 0 0 1 19.763-69.837 151.962 151.962 0 0 1 87.347-65.74 85.914 85.914 0 0 1 24.474-4.096 29.082 29.082 0 1 1 0 58.163 15.667 15.667 0 0 0-6.451 1.229 95.949 95.949 0 0 0-55.91 40.96 75.264 75.264 0 0 0-11.06 39.628c0 45.978 42.496 83.866 94.925 83.866a105.267 105.267 0 0 0 51.2-13.414 81.92 81.92 0 0 0 43.622-70.452V390.35a138.752 138.752 0 0 1 72.807-120.525 151.245 151.245 0 0 1 79.155-21.504c84.378 0 153.6 63.488 153.6 142.029a136.192 136.192 0 0 1-19.763 69.837z" fill="#00B240"/></svg>`;
+    let loadedImage = null;
+    let currentSvg = '';
+    let STATE = null;
+    let BADGE_PARSED = null;
+    let LOGO_DATA_URL = null;
+    let LOGO_MODE = 'auto';   // 'auto' = 从原图截取；'custom' = 用户上传；'empty' = 占位圆
+
+    function log(msg, type = '') {
+      const span = document.createElement('span');
+      if (type) span.className = type;
+      span.textContent = msg + '\n';
+      logEl.appendChild(span);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+    function clearLog() {logEl.innerHTML = '';}
+
+    chooseBtn.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      clearLog();
+      resultPanel.style.display = 'none';
+      runBtn.disabled = true;
+      downloadBtn.disabled = true;
+      currentSvg = '';
+      STATE = null;
+      fileName.textContent = file.name;
+
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        loadedImage = img;
+        log(`图片已加载：${img.naturalWidth} × ${img.naturalHeight}`, 'ok');
+        log('点击"开始测绘"运行算法');
+        runBtn.disabled = false;
+      };
+      img.onerror = () => log('图片加载失败', 'err');
+      img.src = url;
+    });
+
+    runBtn.addEventListener('click', () => {
+      if (!loadedImage) return;
+      runBtn.disabled = true;
+      clearLog();
+      resultPanel.style.display = 'none';
+      svgBox.innerHTML = '';
+      currentSvg = '';
+
+      setTimeout(() => {
+        try {
+          STATE = runSurvey(loadedImage);
+          resultPanel.style.display = 'block';
+          downloadBtn.disabled = false;
+          logoSlider.disabled = false;
+          resetLogoBtn.disabled = false;
+          locatorScaleSlider.disabled = false;
+          resetLocatorBtn.disabled = false;
+          badgeDistSlider.disabled = false;
+          badgeSizeSlider.disabled = false;
+          resetBadgeBtn.disabled = false;
+
+          // ==== 应用标定基准值（所有滑块设为 1.00×） ====
+          const initLogoR = STATE.sideLen * BASELINE_LOGO_RATIO;
+          setSliderFromScale(1.0);
+
+          STATE.locatorScale = 1.0;
+          locatorScaleSlider.value = 100;
+          locatorScaleVal.textContent = '1.00×';
+
+          setBadgeDistSlider(1.0);
+          setBadgeSizeSlider(1.0);
+
+          // 每次换图，logo 默认从原图截取（覆盖上次的 custom/empty 状态）
+          LOGO_MODE = 'auto';
+          LOGO_DATA_URL = null;
+          renderOutputs(initLogoR);
+          log(`完成：logo = 1.00×（${initLogoR.toFixed(1)}px = 0.380 × sideLen），定位点 1.00×（0.086 × sideLen），徽标 1.00×`, 'ok');
+        } catch (err) {
+          log('失败：' + err.message, 'err');
+          console.error(err);
+        } finally {
+          runBtn.disabled = false;
+        }
+      }, 30);
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      if (!currentSvg) return;
+      const blob = new Blob([currentSvg], {type: 'image/svg+xml'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'mini-code.svg';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    /* ==================== 滑块 ==================== */
+    function sliderToRadius(v) {
+      if (!STATE) return 0;
+      return STATE.sideLen * BASELINE_LOGO_RATIO * (v / 100);
+    }
+    function setSliderFromScale(scale) {
+      if (!STATE) return;
+      const v = Math.round(scale * 100);
+      logoSlider.value = Math.max(50, Math.min(150, v));
+    }
+
+    logoSlider.addEventListener('input', () => {
+      if (!STATE) return;
+      renderOutputs(sliderToRadius(+logoSlider.value));
+    });
+    resetLogoBtn.addEventListener('click', () => {
+      if (!STATE) return;
+      setSliderFromScale(1.0);
+      renderOutputs(sliderToRadius(100));
+    });
+
+    locatorScaleSlider.addEventListener('input', () => {
+      if (!STATE) return;
+      STATE.locatorScale = +locatorScaleSlider.value / 100;
+      locatorScaleVal.textContent = STATE.locatorScale.toFixed(2) + '×';
+      renderOutputs(sliderToRadius(+logoSlider.value));
+    });
+    resetLocatorBtn.addEventListener('click', () => {
+      if (!STATE) return;
+      STATE.locatorScale = 1.0;
+      locatorScaleSlider.value = 100;
+      locatorScaleVal.textContent = '1.00×';
+      renderOutputs(sliderToRadius(+logoSlider.value));
+    });
+
+    function setBadgeDistSlider(scale) {
+      const v = Math.round(scale * 100);
+      badgeDistSlider.value = Math.max(50, Math.min(150, v));
+      updateBadgeDistText();
+    }
+    function updateBadgeDistText() {
+      if (!STATE) return;
+      const scale = +badgeDistSlider.value / 100;
+      STATE.badge.distScale = scale;
+      STATE.badge.distRatio = BASELINE_BADGE_DIST * scale;
+      const px = STATE.sideLen * STATE.badge.distRatio;
+      badgeDistVal.textContent = `${scale.toFixed(2)}×（${px.toFixed(1)} px / ${STATE.badge.distRatio.toFixed(3)} × codeRadius）`;
+    }
+    badgeDistSlider.addEventListener('input', () => {
+      if (!STATE) return;
+      updateBadgeDistText();
+      renderOutputs(sliderToRadius(+logoSlider.value));
+    });
+
+    function setBadgeSizeSlider(scale) {
+      const v = Math.round(scale * 100);
+      badgeSizeSlider.value = Math.max(50, Math.min(150, v));
+      updateBadgeSizeText();
+    }
+    function updateBadgeSizeText() {
+      if (!STATE) return;
+      const scale = +badgeSizeSlider.value / 100;
+      STATE.badge.sizeScale = scale;
+      STATE.badge.sizeRatio = BASELINE_BADGE_SIZE * scale;
+      const px = STATE.sideLen * STATE.badge.sizeRatio;
+      badgeSizeVal.textContent = `${scale.toFixed(2)}×（${px.toFixed(1)} px / ${STATE.badge.sizeRatio.toFixed(3)} × codeRadius）`;
+    }
+    badgeSizeSlider.addEventListener('input', () => {
+      if (!STATE) return;
+      updateBadgeSizeText();
+      renderOutputs(sliderToRadius(+logoSlider.value));
+    });
+    resetBadgeBtn.addEventListener('click', () => {
+      if (!STATE) return;
+      setBadgeDistSlider(1.0);
+      setBadgeSizeSlider(1.0);
+      renderOutputs(sliderToRadius(+logoSlider.value));
+    });
+    /* ==================== Logo 上传 / 清除 ==================== */
+    const uploadLogoBtn = document.getElementById('uploadLogoBtn');
+    const clearLogoBtn = document.getElementById('clearLogoBtn');
+    const logoFileInput = document.getElementById('logoFileInput');
+
+    const cropLogoBtn = document.getElementById('cropLogoBtn');
+
+    uploadLogoBtn.addEventListener('click', () => logoFileInput.click());
+
+    cropLogoBtn.addEventListener('click', () => {
+      LOGO_MODE = 'auto';
+      LOGO_DATA_URL = null;
+      if (STATE) {
+        STATE._lastAutoLogo = null;
+        renderOutputs(sliderToRadius(+logoSlider.value));
+      }
+      log('已从原图 logo 区截取填充');
+    });
+
+    clearLogoBtn.addEventListener('click', () => {
+      LOGO_MODE = 'empty';
+      LOGO_DATA_URL = null;
+      if (STATE) {
+        STATE._lastAutoLogo = null;
+        renderOutputs(sliderToRadius(+logoSlider.value));
+      }
+      log('Logo 已清除，显示占位圆');
+    });
+
+    logoFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        LOGO_DATA_URL = reader.result;
+        LOGO_MODE = 'custom';
+        if (STATE) renderOutputs(sliderToRadius(+logoSlider.value));
+        log(`Logo 已加载：${file.name}（${file.type}）`, 'ok');
+      };
+      reader.onerror = () => log('Logo 读取失败', 'err');
+      reader.readAsDataURL(file);
+      logoFileInput.value = '';
+    });
+
+    /* ==================== 徽标 SVG 解析 ==================== */
+    function parseBadgeSvg(raw) {
+      try {
+        const doc = new DOMParser().parseFromString(raw, 'image/svg+xml');
+        const svg = doc.documentElement;
+        if (!svg || svg.nodeName.toLowerCase() !== 'svg') return null;
+        let vx = 0, vy = 0, vw = 100, vh = 100;
+        const vb = svg.getAttribute('viewBox');
+        if (vb) {
+          const p = vb.trim().split(/[\s,]+/).map(Number);
+          if (p.length === 4) {vx = p[0]; vy = p[1]; vw = p[2]; vh = p[3];}
+        } else {
+          vw = parseFloat(svg.getAttribute('width') || 100);
+          vh = parseFloat(svg.getAttribute('height') || 100);
+        }
+        let inner = '';
+        for (const node of Array.from(svg.childNodes)) {
+          if (node.nodeType === 1) inner += new XMLSerializer().serializeToString(node);
+        }
+        return {vx, vy, vw, vh, inner};
+      } catch (e) {
+        console.error('徽标 SVG 解析失败', e);
+        return null;
+      }
+    }
+
+    /* ==================== 从原图截取 logo 区 ==================== */
+    function cropLogoFromOriginal(logoR) {
+      if (!STATE || !STATE.originalImg) return null;
+      const size = Math.max(16, Math.round(logoR * 2));
+      const c = document.createElement('canvas');
+      c.width = size; c.height = size;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(
+        STATE.originalImg,
+        STATE.cx - logoR, STATE.cy - logoR, logoR * 2, logoR * 2,
+        0, 0, size, size
+      );
+      return c.toDataURL('image/png');
+    }
+
+
+    debugCanvas.addEventListener('click', (e) => {
+      if (!STATE) return;
+      const rect = debugCanvas.getBoundingClientRect();
+      const sx = debugCanvas.width / rect.width;
+      const sy = debugCanvas.height / rect.height;
+      const x = (e.clientX - rect.left) * sx;
+      const y = (e.clientY - rect.top) * sy;
+      const r = Math.hypot(x - STATE.cx, y - STATE.cy);
+      const rawScale = r / (STATE.sideLen * BASELINE_LOGO_RATIO);
+      const clampedScale = Math.max(0.5, Math.min(1.5, rawScale));
+      setSliderFromScale(clampedScale);
+      renderOutputs(sliderToRadius(Math.round(clampedScale * 100)));
+      log(`点击设定中央 logo：${clampedScale.toFixed(2)}×（${sliderToRadius(Math.round(clampedScale * 100)).toFixed(1)}px）`);
+    });
+
+    /* ==================== 核心测绘 ==================== */
+    function runSurvey(img) {
+      const W = img.naturalWidth, H = img.naturalHeight;
+      const canvas = document.createElement('canvas');
+      canvas.width = W; canvas.height = H;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const data = ctx.getImageData(0, 0, W, H).data;
+
+      log('[1/7] 灰度化…');
+      const gray = new Uint8Array(W * H);
+      for (let i = 0; i < gray.length; i++) {
+        const p = i * 4;
+        if (data[p + 3] < 128) {gray[i] = 255; continue;}
+        gray[i] = (data[p] * 0.299 + data[p + 1] * 0.587 + data[p + 2] * 0.114) | 0;
+      }
+
+      log('[2/7] Otsu 二值化…');
+      const otsu = otsuThreshold(gray);
+      const bin = new Uint8Array(W * H);
+      for (let i = 0; i < gray.length; i++) bin[i] = gray[i] < otsu ? 1 : 0;
+
+      log('[3/7] 定位点检测与测量…');
+      const roughLocators = detectLocators(bin, W, H);
+      if (roughLocators.length < 3) throw new Error(`只找到 ${roughLocators.length} 个定位点`);
+      const trio = pickThreeLocators(roughLocators);
+      const comps = connectedComponents(bin, W, H);
+
+      const scanRadius = Math.max(4, ...trio.map(p => p.w * 1.5));
+      const measured = trio.map((p, i) => {
+        const m = measureLocatorFromRing(p, comps, bin, W, H, scanRadius);
+        if (m) {
+          log(`  定位点 ${i + 1}: r_inner=${m.r_inner.toFixed(2)}, r_mid=${m.r_mid.toFixed(2)}, r_outer=${m.r_outer.toFixed(2)} ✓`, 'ok');
+          return m;
+        }
+        log(`  定位点 ${i + 1}: 外黑环测量失败，回退`, 'warn');
+        const fb = refineLocatorFallback(p, comps, scanRadius);
+        const R_inner = fb.r || scanRadius * 0.1;
+        return {x: fb.x, y: fb.y, r_inner: R_inner, r_mid: R_inner * 5 / 3, r_outer: R_inner * 7 / 3};
+      });
+
+      const circum = circumcircle(measured[0], measured[1], measured[2]);
+      const cx = circum.cx, cy = circum.cy;
+      if (!isFinite(cx) || !isFinite(cy)) throw new Error('定位点共线');
+      const maxDist = Math.max(...measured.map(p => Math.hypot(p.x - cx, p.y - cy)));
+      const codeRadius = maxDist * 1.22;
+      const sideLen = computeSideLength(measured);
+      log(`  圆心 (${cx.toFixed(1)}, ${cy.toFixed(1)})，maxDist = ${maxDist.toFixed(2)}px，sideLen = ${sideLen.toFixed(2)}px`, 'ok');
+
+      const locatorExcludeR = sideLen * BASELINE_LOCATOR_OUTER * 1.15;
+      log(`  定位点排除半径 = ${locatorExcludeR.toFixed(1)}px（sideLen × ${BASELINE_LOCATOR_OUTER} × 1.15）`, 'ok');
+
+      // logo 半径基于 sideLen
+      const autoLogoR = sideLen * BASELINE_LOGO_RATIO;
+      log(`  默认中央 logo 半径 = ${autoLogoR.toFixed(1)}px = ${BASELINE_LOGO_RATIO} × sideLen`, 'ok');
+
+      log('[4/7] 确定徽标方向（直角顶点对面）…');
+      const badge = determineBadge(measured, cx, cy, codeRadius);
+      log(`  直角顶点：(${badge.rightVertex.x.toFixed(0)}, ${badge.rightVertex.y.toFixed(0)})`, 'ok');
+
+      log('[5/7] 码点半径基于 sideLen…');
+      const dotR = sideLen * BASELINE_DOT_RATIO;
+      const dotDiameter = dotR * 2;   // 供后续候选码点面积过滤使用
+      log(`  码点半径 = ${dotR.toFixed(2)}px，直径 = ${dotDiameter.toFixed(2)}px（sideLen × ${BASELINE_DOT_RATIO}）`, 'ok');
+
+      log('[6/7] 收集候选码点…');
+      const candidates = [];
+      const minArea = Math.max(6, dotDiameter * dotDiameter * 0.15);
+      const maxArea = dotDiameter * dotDiameter * 50;
+      const circleAspect = 1.45;
+
+      // 徽标区排除范围（中心按默认距圆心距离，半径放大到 1.5 倍，覆盖滑块可调范围）
+      const badgeFilterDist = sideLen * BASELINE_BADGE_DIST;
+      const badgeFilterX = cx + badge.ux * badgeFilterDist;
+      const badgeFilterY = cy + badge.uy * badgeFilterDist;
+      const badgeFilterR = sideLen * BASELINE_BADGE_SIZE;
+
+      for (const c of comps) {
+        if (c.area < minArea) continue;
+        if (c.area > maxArea) continue;
+
+        // 徽标区排除：连通域 bbox 与徽标圆有任何重叠都排除
+        const nearestX = Math.max(c.minX, Math.min(badgeFilterX, c.maxX));
+        const nearestY = Math.max(c.minY, Math.min(badgeFilterY, c.maxY));
+        if (Math.hypot(nearestX - badgeFilterX, nearestY - badgeFilterY) < badgeFilterR) continue;
+
+        let nearLoc = false;
+        for (const p of measured) {
+          if (Math.hypot(c.cx - p.x, c.cy - p.y) < locatorExcludeR) {nearLoc = true; break;}
+        }
+        if (nearLoc) continue;
+
+        const distCenter = Math.hypot(c.cx - cx, c.cy - cy);
+        const aspect = Math.sqrt(c.l1 / Math.max(c.l2, 1e-6));
+
+        if (aspect < circleAspect && c.area < dotDiameter * dotDiameter * 3.5) {
+          candidates.push({type: 'circle', x: c.cx, y: c.cy, r: dotR, distCenter});
+        } else {
+          const cap = buildCapsule(c, bin, W, H, dotR);
+          if (cap) candidates.push({...cap, distCenter});
+        }
+      }
+      log(`  候选码点 ${candidates.length} 个`, 'ok');
+
+      log('[7/7] 完成', 'ok');
+      // 每次测绘重新解析徽标 SVG（方便你改了 BADGE_SVG_RAW 后直接生效）
+      BADGE_PARSED = parseBadgeSvg(BADGE_SVG_RAW);
+      if (BADGE_PARSED) log(`  徽标 SVG 解析成功：${BADGE_PARSED.vw} × ${BADGE_PARSED.vh}`, 'ok');
+      else log(`  徽标 SVG 解析失败，请检查 BADGE_SVG_RAW 是否有效`, 'warn');
+
+      return {
+        bin, W, H, comps,
+        locators: measured,
+        cx, cy, maxDist, codeRadius, dotR, sideLen,
+        locatorExcludeR,
+        autoLogoR,
+        candidates,
+        originalImg: img,
+        locatorScale: 1.0,
+        badge: {
+          ux: badge.ux, uy: badge.uy,
+          distScale: 1.0,
+          distRatio: BASELINE_BADGE_DIST,
+          sizeScale: 1.0,
+          sizeRatio: BASELINE_BADGE_SIZE,
+          rightVertex: badge.rightVertex,
+        },
+      };
+    }
+
+    /* ==================== 徽标方向 ==================== */
+    function determineBadge(locators, cx, cy, codeRadius) {
+      const [A, B, C] = locators;
+      const dAB = Math.hypot(B.x - A.x, B.y - A.y);
+      const dBC = Math.hypot(C.x - B.x, C.y - B.y);
+      const dCA = Math.hypot(A.x - C.x, A.y - C.y);
+      let rightVertex;
+      if (dAB >= dBC && dAB >= dCA) rightVertex = C;
+      else if (dBC >= dCA && dBC >= dAB) rightVertex = A;
+      else rightVertex = B;
+
+      const dx = cx - rightVertex.x;
+      const dy = cy - rightVertex.y;
+      const len = Math.hypot(dx, dy);
+      return {rightVertex, ux: dx / len, uy: dy / len};
+    }
+
+    /* ==================== 计算 sideLen（三个定位点直角边平均长度） ==================== */
+    function computeSideLength(locators) {
+      const [A, B, C] = locators;
+      const dAB = Math.hypot(B.x - A.x, B.y - A.y);
+      const dBC = Math.hypot(C.x - B.x, C.y - B.y);
+      const dCA = Math.hypot(A.x - C.x, A.y - C.y);
+      const sides = [dAB, dBC, dCA].sort((a, b) => a - b);
+      return (sides[0] + sides[1]) / 2;
+    }
+
+    /* ==================== 从外黑环测量定位点 ==================== */
+    function measureLocatorFromRing(p, comps, bin, W, H, searchRadius) {
+      let outerRing = null, outerDiam = 0;
+      for (const c of comps) {
+        const d = Math.hypot(c.cx - p.x, c.cy - p.y);
+        if (d > searchRadius * 0.6) continue;
+        const bw = c.maxX - c.minX + 1;
+        const bh = c.maxY - c.minY + 1;
+        const aspect = Math.max(bw, bh) / Math.min(bw, bh);
+        if (aspect > 1.4) continue;
+        const diam = (bw + bh) / 2;
+        if (diam < 10) continue;
+        if (diam > searchRadius * 2.5) continue;
+        if (!isHollowRing(c, bin, W, H)) continue;
+        if (diam > outerDiam) {outerDiam = diam; outerRing = c;}
+      }
+      if (!outerRing) return null;
+
+      const rcx = outerRing.cx, rcy = outerRing.cy;
+      const R_outer = outerDiam / 2;
+
+      let innerDot = null, innerDiam = 0;
+      for (const c of comps) {
+        if (c === outerRing) continue;
+        const d = Math.hypot(c.cx - rcx, c.cy - rcy);
+        if (d > R_outer * 0.3) continue;
+        const bw = c.maxX - c.minX + 1;
+        const bh = c.maxY - c.minY + 1;
+        const aspect = Math.max(bw, bh) / Math.min(bw, bh);
+        if (aspect > 1.4) continue;
+        const diam = (bw + bh) / 2;
+        if (diam < R_outer * 0.15) continue;
+        if (diam > R_outer * 0.55) continue;
+        if (diam > innerDiam) {innerDiam = diam; innerDot = c;}
+      }
+
+      const R_inner = innerDot ? innerDiam / 2 : R_outer / 3;
+      const R_mid = (R_outer + R_inner) / 2;
+
+      return {x: rcx, y: rcy, r_inner: R_inner, r_mid: R_mid, r_outer: R_outer};
+    }
+
+    function isHollowRing(comp, bin, W, H) {
+      const cx = comp.cx, cy = comp.cy;
+      const R = Math.min(comp.maxX - comp.minX, comp.maxY - comp.minY) / 2;
+      const checkR = Math.max(2, R * 0.35);
+      let white = 0, total = 0;
+      for (let y = Math.floor(cy - checkR); y <= Math.ceil(cy + checkR); y++) {
+        for (let x = Math.floor(cx - checkR); x <= Math.ceil(cx + checkR); x++) {
+          if (x < 0 || y < 0 || x >= W || y >= H) continue;
+          if (Math.hypot(x - cx, y - cy) > checkR) continue;
+          total++;
+          if (bin[y * W + x] === 0) white++;
+        }
+      }
+      return total > 0 && white / total > 0.55;
+    }
+
+    function refineLocatorFallback(p, comps, searchRadius) {
+      let best = null, bestArea = Infinity;
+      for (const c of comps) {
+        const d = Math.hypot(c.cx - p.x, c.cy - p.y);
+        if (d > searchRadius * 0.7) continue;
+        const aspect = Math.sqrt(c.l1 / Math.max(c.l2, 1e-6));
+        if (aspect > 1.5) continue;
+        if (c.area < 4) continue;
+        if (c.area > searchRadius * searchRadius * 2) continue;
+        if (c.area < bestArea) {bestArea = c.area; best = c;}
+      }
+      return best
+        ? {x: best.cx, y: best.cy, r: Math.sqrt(best.area / Math.PI)}
+        : {x: p.x, y: p.y, r: null};
+    }
+
+    /* ==================== 交互式重绘 ==================== */
+    function renderOutputs(logoR) {
+      if (!STATE) return;
+      const dots = STATE.candidates.filter(c => c.distCenter >= logoR);
+
+      const {cx, cy, codeRadius, dotR, locators, maxDist, badge} = STATE;
+      const scale = STATE.locatorScale || 1.0;
+
+      const badgeDist = STATE.sideLen * badge.distRatio;
+      const badgeCx = cx + badge.ux * badgeDist;
+      const badgeCy = cy + badge.uy * badgeDist;
+      const badgeR = STATE.sideLen * badge.sizeRatio;
+
+      const pad = codeRadius * 0.1;
+      const vb = `${(cx - codeRadius - pad).toFixed(2)} ${(cy - codeRadius - pad).toFixed(2)} ${(2 * (codeRadius + pad)).toFixed(2)} ${(2 * (codeRadius + pad)).toFixed(2)}`;
+      let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" width="600" height="600">\n`;
+      svg += `  <rect x="${(cx - codeRadius - pad).toFixed(2)}" y="${(cy - codeRadius - pad).toFixed(2)}" width="${(2 * (codeRadius + pad)).toFixed(2)}" height="${(2 * (codeRadius + pad)).toFixed(2)}" fill="#ffffff"/>\n`;
+
+      // 码点
+      for (const d of dots) {
+        if (d.type === 'circle') {
+          svg += `  <circle cx="${d.x.toFixed(2)}" cy="${d.y.toFixed(2)}" r="${d.r.toFixed(2)}" fill="#000000"/>\n`;
+        } else {
+          const deg = (d.angle * 180 / Math.PI).toFixed(2);
+          svg += `  <rect x="${(d.x - d.L / 2).toFixed(2)}" y="${(d.y - d.r).toFixed(2)}" width="${d.L.toFixed(2)}" height="${(2 * d.r).toFixed(2)}" rx="${d.r.toFixed(2)}" ry="${d.r.toFixed(2)}" fill="#000000" transform="rotate(${deg} ${d.x.toFixed(2)} ${d.y.toFixed(2)})"/>\n`;
+        }
+      }
+
+      // 描边宽度与虚线间隔按 codeRadius 比例，保证任意分辨率的图导入 AI 后视觉一致
+      const strokeW = Math.max(1, codeRadius * 0.014);
+      const dashOn = Math.max(3, codeRadius * 0.05);
+      const dashOff = Math.max(2, codeRadius * 0.025);
+      const dashStyle = `${dashOn.toFixed(1)} ${dashOff.toFixed(1)}`;
+
+      // 中央 Logo：三态 —— auto 原图截取 / custom 上传 / empty 占位圆
+      let logoSrc = null;
+      if (LOGO_MODE === 'custom' && LOGO_DATA_URL) {
+        logoSrc = LOGO_DATA_URL;
+      } else if (LOGO_MODE === 'auto') {
+        if (!STATE._lastAutoLogo) STATE._lastAutoLogo = {key: '', dataUrl: ''};
+        const key = logoR.toFixed(1);
+        if (STATE._lastAutoLogo.key !== key) {
+          STATE._lastAutoLogo.key = key;
+          STATE._lastAutoLogo.dataUrl = cropLogoFromOriginal(logoR);
+        }
+        logoSrc = STATE._lastAutoLogo.dataUrl;
+      }
+
+      if (logoSrc) {
+        const clipId = 'miniLogoClip';
+        svg += `  <!-- 中央 Logo（${LOGO_MODE === 'custom' ? '上传' : '原图截取'}） -->\n`;
+        svg += `  <defs><clipPath id="${clipId}"><circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${logoR.toFixed(2)}"/></clipPath></defs>\n`;
+        svg += `  <circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${logoR.toFixed(2)}" fill="#ffffff"/>\n`;
+        svg += `  <image href="${logoSrc}" x="${(cx - logoR).toFixed(2)}" y="${(cy - logoR).toFixed(2)}" width="${(logoR * 2).toFixed(2)}" height="${(logoR * 2).toFixed(2)}" preserveAspectRatio="xMidYMid meet" clip-path="url(#${clipId})"/>\n`;
+      } else {
+        svg += `  <!-- 中央 Logo 占位圆 -->\n`;
+        svg += `  <circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${logoR.toFixed(2)}" fill="#ffffff" stroke="#888888" stroke-width="${strokeW.toFixed(2)}" stroke-dasharray="${dashStyle}"/>\n`;
+      }
+
+      // 右下徽标：白底圆 + 固定的徽标 SVG（用 <g transform> 缩放居中）
+      if (BADGE_PARSED) {
+        const scaleB = (badgeR * 2) / Math.max(BADGE_PARSED.vw, BADGE_PARSED.vh);
+        const localX = -(BADGE_PARSED.vx + BADGE_PARSED.vw / 2);
+        const localY = -(BADGE_PARSED.vy + BADGE_PARSED.vh / 2);
+        svg += `  <!-- 右下徽标：白底圆 + 嵌入徽标 SVG -->\n`;
+        svg += `  <circle cx="${badgeCx.toFixed(2)}" cy="${badgeCy.toFixed(2)}" r="${badgeR.toFixed(2)}" fill="#ffffff"/>\n`;
+        svg += `  <g transform="translate(${badgeCx.toFixed(2)} ${badgeCy.toFixed(2)}) scale(${scaleB.toFixed(6)}) translate(${localX.toFixed(4)} ${localY.toFixed(4)})">\n`;
+        svg += `    ${BADGE_PARSED.inner}\n`;
+        svg += `  </g>\n`;
+      } else {
+        svg += `  <!-- 徽标 SVG 未就绪，用白底圆占位 -->\n`;
+        svg += `  <circle cx="${badgeCx.toFixed(2)}" cy="${badgeCy.toFixed(2)}" r="${badgeR.toFixed(2)}" fill="#ffffff"/>\n`;
+      }
+
+      // 三个定位点（基于 sideLen，最后画，最上层）
+      const locScale = STATE.locatorScale || 1.0;
+      const locatorOuter = STATE.sideLen * BASELINE_LOCATOR_OUTER * locScale;
+const locatorMid = locatorOuter * LOCATOR_MID_RATIO;
+const locatorInner = locatorOuter * LOCATOR_INNER_RATIO;
+      for (const p of locators) {
+        svg += `  <circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="${locatorOuter.toFixed(2)}" fill="#000000"/>\n`;
+        svg += `  <circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="${locatorMid.toFixed(2)}" fill="#ffffff"/>\n`;
+        svg += `  <circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="${locatorInner.toFixed(2)}" fill="#000000"/>\n`;
+      }
+      svg += `</svg>`;
+
+      currentSvg = svg;
+      svgBox.innerHTML = svg;
+
+const ratio = (logoR / STATE.sideLen).toFixed(3);
+logoRVal.textContent = `${logoR.toFixed(1)} px（${ratio} × sideLen）`;
+      const circleN = dots.filter(d => d.type === 'circle').length;
+      const capsN = dots.filter(d => d.type === 'capsule').length;
+      const excluded = STATE.candidates.length - dots.length;
+      svgStat.textContent = `圆形 ${circleN}，胶囊 ${capsN}，共 ${dots.length} 个（排除 ${excluded} 个）`;
+      debugStat.textContent = `连通域 ${STATE.comps.length}，候选 ${STATE.candidates.length}，输出 ${dots.length}，定位点 ${scale.toFixed(2)}×`;
+
+      drawDebug(STATE, logoR, dots, badgeCx, badgeCy, badgeR);
+    }
+
+
+    /* ==================== 胶囊 ==================== */
+    function buildCapsule(comp, bin, W, H, dotR) {
+      const ux = comp.ux, uy = comp.uy;
+      let minT = Infinity, maxT = -Infinity;
+      for (let y = comp.minY; y <= comp.maxY; y++) {
+        for (let x = comp.minX; x <= comp.maxX; x++) {
+          if (bin[y * W + x] !== 1) continue;
+          const t = (x - comp.cx) * ux + (y - comp.cy) * uy;
+          if (t < minT) minT = t;
+          if (t > maxT) maxT = t;
+        }
+      }
+      const L = Math.max(2.1 * dotR, maxT - minT);
+      return {type: 'capsule', x: comp.cx, y: comp.cy, r: dotR, L, angle: Math.atan2(uy, ux)};
+    }
+
+    /* ==================== 连通域 ==================== */
+    function connectedComponents(bin, W, H) {
+      const labels = new Int32Array(W * H).fill(-1);
+      const comps = [];
+      const stack = [];
+      let label = 0;
+      for (let i = 0; i < W * H; i++) {
+        if (bin[i] !== 1 || labels[i] !== -1) continue;
+        const comp = {
+          area: 0, sumX: 0, sumY: 0, sumXX: 0, sumYY: 0, sumXY: 0,
+          minX: W, maxX: 0, minY: H, maxY: 0
+        };
+        stack.push(i);
+        labels[i] = label;
+        while (stack.length) {
+          const idx = stack.pop();
+          const x = idx % W;
+          const y = (idx / W) | 0;
+          comp.area++;
+          comp.sumX += x; comp.sumY += y;
+          comp.sumXX += x * x; comp.sumYY += y * y; comp.sumXY += x * y;
+          if (x < comp.minX) comp.minX = x;
+          if (x > comp.maxX) comp.maxX = x;
+          if (y < comp.minY) comp.minY = y;
+          if (y > comp.maxY) comp.maxY = y;
+          if (x > 0 && bin[idx - 1] === 1 && labels[idx - 1] === -1) {labels[idx - 1] = label; stack.push(idx - 1);}
+          if (x < W - 1 && bin[idx + 1] === 1 && labels[idx + 1] === -1) {labels[idx + 1] = label; stack.push(idx + 1);}
+          if (y > 0 && bin[idx - W] === 1 && labels[idx - W] === -1) {labels[idx - W] = label; stack.push(idx - W);}
+          if (y < H - 1 && bin[idx + W] === 1 && labels[idx + W] === -1) {labels[idx + W] = label; stack.push(idx + W);}
+        }
+        comp.cx = comp.sumX / comp.area;
+        comp.cy = comp.sumY / comp.area;
+        const mxx = comp.sumXX / comp.area - comp.cx * comp.cx;
+        const myy = comp.sumYY / comp.area - comp.cy * comp.cy;
+        const mxy = comp.sumXY / comp.area - comp.cx * comp.cy;
+        const tr = mxx + myy;
+        const det = mxx * myy - mxy * mxy;
+        const disc = Math.sqrt(Math.max(0, tr * tr / 4 - det));
+        comp.l1 = tr / 2 + disc;
+        comp.l2 = Math.max(1e-6, tr / 2 - disc);
+        const angle = 0.5 * Math.atan2(2 * mxy, mxx - myy);
+        comp.ux = Math.cos(angle);
+        comp.uy = Math.sin(angle);
+        comps.push(comp);
+        label++;
+      }
+      return comps;
+    }
+
+    /* ==================== 定位点粗检测 ==================== */
+    function detectLocators(bin, W, H) {
+      const candidates = [];
+      const step = Math.max(1, Math.floor(Math.min(W, H) / 400));
+      const directions = [[1, 0], [0, 1], [1, 1], [1, -1]];
+      for (const [dx, dy] of directions) {
+        const len = Math.hypot(W, H) | 0;
+        const lines = Math.max(W, H) / step;
+        for (let lineIdx = 0; lineIdx < lines; lineIdx++) {
+          const offset = (lineIdx - lines / 2) * step;
+          const px = W / 2 + (-dy) * offset;
+          const py = H / 2 + (dx) * offset;
+          let runs = [];
+          let lastColor = null, runStart = 0;
+          for (let t = -len; t < len; t += step) {
+            const x = px + dx * t;
+            const y = py + dy * t;
+            if (x < 0 || y < 0 || x >= W || y >= H) {lastColor = null; continue;}
+            const c = bin[(y | 0) * W + (x | 0)];
+            if (c !== lastColor) {
+              if (lastColor !== null) runs.push({color: lastColor, start: runStart, end: t - step});
+              lastColor = c; runStart = t;
+            }
+          }
+          if (lastColor !== null) runs.push({color: lastColor, start: runStart, end: len});
+          for (let i = 0; i + 4 < runs.length; i++) {
+            const segs = runs.slice(i, i + 5);
+            if (!(segs[0].color === 1 && segs[1].color === 0 && segs[2].color === 1 &&
+              segs[3].color === 0 && segs[4].color === 1)) continue;
+            const widths = segs.map(s => s.end - s.start);
+            if (widths.some(w => w < 2 || w > Math.min(W, H) * 0.15)) continue;
+            const maxW = Math.max(...widths), minW = Math.min(...widths);
+            if (maxW / Math.max(1, minW) > 2.5) continue;
+            const midT = (segs[2].start + segs[2].end) / 2;
+            candidates.push({x: px + dx * midT, y: py + dy * midT, w: widths[2]});
+          }
+        }
+      }
+      const clusters = [];
+      const mergeDist = Math.min(W, H) * 0.05;
+      for (const c of candidates) {
+        let found = false;
+        for (const cl of clusters) {
+          if (Math.hypot(c.x - cl.x, c.y - cl.y) < mergeDist) {
+            cl.x = (cl.x * cl.count + c.x) / (cl.count + 1);
+            cl.y = (cl.y * cl.count + c.y) / (cl.count + 1);
+            cl.count++;
+            cl.w = Math.max(cl.w, c.w);
+            found = true;
+            break;
+          }
+        }
+        if (!found) clusters.push({x: c.x, y: c.y, w: c.w, count: 1});
+      }
+      clusters.sort((a, b) => b.count - a.count);
+      return clusters.slice(0, 12);
+    }
+
+    function pickThreeLocators(cands) {
+      if (cands.length === 3) return cands;
+      let best = null, bestScore = Infinity;
+      const n = Math.min(cands.length, 8);
+      for (let i = 0; i < n; i++)
+        for (let j = i + 1; j < n; j++)
+          for (let k = j + 1; k < n; k++) {
+            const a = cands[i], b = cands[j], c = cands[k];
+            const ab = dist(a, b), bc = dist(b, c), ca = dist(c, a);
+            const sides = [ab, bc, ca].sort((x, y) => x - y);
+            const eqRatio = sides[1] / Math.max(1, sides[0]);
+            const hypRatio = sides[2] / Math.max(1, sides[1]);
+            const score = Math.abs(eqRatio - 1) * 2 + Math.abs(hypRatio - Math.SQRT2);
+            if (score < bestScore) {bestScore = score; best = [a, b, c];}
+          }
+      return best || cands.slice(0, 3);
+    }
+
+    /* ==================== 工具 ==================== */
+    function dist(a, b) {return Math.hypot(a.x - b.x, a.y - b.y);}
+
+    function otsuThreshold(gray) {
+      const hist = new Array(256).fill(0);
+      for (const v of gray) hist[v]++;
+      const total = gray.length;
+      let sum = 0;
+      for (let i = 0; i < 256; i++) sum += i * hist[i];
+      let sumB = 0, wB = 0, maxVar = 0, th = 128;
+      for (let i = 0; i < 256; i++) {
+        wB += hist[i];
+        if (wB === 0) continue;
+        const wF = total - wB;
+        if (wF === 0) break;
+        sumB += i * hist[i];
+        const mB = sumB / wB, mF = (sum - sumB) / wF;
+        const varB = wB * wF * (mB - mF) ** 2;
+        if (varB > maxVar) {maxVar = varB; th = i;}
+      }
+      return th;
+    }
+
+    function circumcircle(a, b, c) {
+      const [ax, ay, bx, by, cx, cy] = [a.x, a.y, b.x, b.y, c.x, c.y];
+      const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+      if (Math.abs(d) < 1e-9) return {cx: NaN, cy: NaN};
+      const ux = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / d;
+      const uy = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / d;
+      return {cx: ux, cy: uy};
+    }
+
+    /* ==================== 调试图 ==================== */
+    function drawCapsule(ctx, x, y, L, r, angle) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+      const halfL = L / 2;
+      ctx.beginPath();
+      ctx.arc(-halfL + r, 0, r, Math.PI / 2, 3 * Math.PI / 2);
+      ctx.arc(halfL - r, 0, r, -Math.PI / 2, Math.PI / 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawDebug(state, logoR, dots, badgeCx, badgeCy, badgeR) {
+      const W = state.W, H = state.H;
+      debugCanvas.width = W; debugCanvas.height = H;
+      const ctx = debugCanvas.getContext('2d');
+      ctx.drawImage(state.originalImg, 0, 0);
+
+      ctx.fillStyle = 'rgba(52,199,89,0.72)';
+      for (const d of dots) {
+        if (d.type === 'circle') {
+          ctx.beginPath();
+          ctx.arc(d.x, d.y, Math.max(1.2, d.r), 0, 2 * Math.PI);
+          ctx.fill();
+        } else {
+          drawCapsule(ctx, d.x, d.y, d.L, d.r, d.angle);
+        }
+      }
+
+      ctx.strokeStyle = 'rgba(255,150,0,0.9)';
+      ctx.setLineDash([8, 6]);
+      ctx.lineWidth = Math.max(1.5, Math.min(W, H) * 0.0035);
+      ctx.beginPath();
+      ctx.arc(state.cx, state.cy, logoR, 0, 2 * Math.PI);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.strokeStyle = 'rgba(168,85,247,0.9)';
+      ctx.setLineDash([6, 4]);
+      ctx.lineWidth = Math.max(1.5, Math.min(W, H) * 0.0035);
+      ctx.beginPath();
+      ctx.arc(badgeCx, badgeCy, badgeR, 0, 2 * Math.PI);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.strokeStyle = 'rgba(0,200,255,0.9)';
+      ctx.lineWidth = Math.max(1.5, Math.min(W, H) * 0.0035);
+      for (const p of state.locators) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, state.locatorExcludeR, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
+
+      const locScale = state.locatorScale || 1.0;
+      const locatorOuter = state.sideLen * BASELINE_LOCATOR_OUTER * locScale;
+const locatorMid = locatorOuter * LOCATOR_MID_RATIO;
+const locatorInner = locatorOuter * LOCATOR_INNER_RATIO;
+      for (const p of state.locators) {
+        ctx.strokeStyle = 'rgba(255,59,48,0.9)';
+        ctx.lineWidth = Math.max(1, Math.min(W, H) * 0.0025);
+        ctx.beginPath(); ctx.arc(p.x, p.y, locatorOuter, 0, 2 * Math.PI); ctx.stroke();
+        ctx.beginPath(); ctx.arc(p.x, p.y, locatorMid, 0, 2 * Math.PI); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,59,48,0.9)';
+        ctx.beginPath(); ctx.arc(p.x, p.y, locatorInner, 0, 2 * Math.PI); ctx.fill();
+      }
+
+      ctx.strokeStyle = '#ffcc00';
+      ctx.lineWidth = Math.max(1, Math.min(W, H) * 0.003);
+      ctx.beginPath();
+      ctx.moveTo(state.cx - 20, state.cy); ctx.lineTo(state.cx + 20, state.cy);
+      ctx.moveTo(state.cx, state.cy - 20); ctx.lineTo(state.cx, state.cy + 20);
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(168,85,247,0.9)';
+      ctx.lineWidth = Math.max(1, Math.min(W, H) * 0.0025);
+      const bs = Math.max(4, badgeR * 0.3);
+      ctx.beginPath();
+      ctx.moveTo(badgeCx - bs, badgeCy); ctx.lineTo(badgeCx + bs, badgeCy);
+      ctx.moveTo(badgeCx, badgeCy - bs); ctx.lineTo(badgeCx, badgeCy + bs);
+      ctx.stroke();
+    }
+  </script>
+</body>
+
+</html>
