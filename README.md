@@ -8,7 +8,7 @@
 
 ## 使用
 
-访问 **[在线 Demo](https://github.com/JuamLuo/mini-program-code-vectorizer/tree/main)** 直接使用，无需安装。
+访问 **[在线 Demo](https://juamluo.github.io/mini-program-code-vectorizer/)** 直接使用，无需安装。
 
 或者把 `index.html` 下载到本地，双击用浏览器打开即可（Chrome / Edge / Safari 均可）。
 <img width="1050" height="979" alt="ScreenShot_2026-11-05_220214_209" src="https://github.com/user-attachments/assets/83e6b01d-488d-4625-ad58-29a1407680f6" />
